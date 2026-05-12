@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quant Bot Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Quant Bot</p>
+      <h1>交易后台</h1>
+    </div>
+    <div class="status-pill" id="runningStatus">Loading</div>
+  </header>
+
+  <main class="shell">
+    <section class="metrics">
+      <article class="metric">
+        <span>交易对</span>
+        <strong id="symbol">--</strong>
+      </article>
+      <article class="metric">
+        <span>当前价格</span>
+        <strong id="price">--</strong>
+      </article>
+      <article class="metric signal">
+        <span>交易信号</span>
+        <strong id="signal">--</strong>
+      </article>
+      <article class="metric">
+        <span>建议数量</span>
+        <strong id="amount">--</strong>
+      </article>
+    </section>
+
+    <section class="layout">
+      <div class="panel control-panel">
+        <div class="panel-head">
+          <h2>控制台</h2>
+          <span id="testMode">--</span>
+        </div>
+        <div class="button-row">
+          <button id="startBtn" class="primary">启动</button>
+          <button id="stopBtn">停止</button>
+          <button id="runOnceBtn">刷新一次</button>
+        </div>
+        <dl class="settings">
+          <div><dt>周期</dt><dd id="timeframe">--</dd></div>
+          <div><dt>短均线</dt><dd id="shortMa">--</dd></div>
+          <div><dt>长均线</dt><dd id="longMa">--</dd></div>
+          <div><dt>风险比例</dt><dd id="riskPercent">--</dd></div>
+          <div><dt>上次更新</dt><dd id="lastUpdate">--</dd></div>
+          <div><dt>下次检查</dt><dd id="nextCheck">--</dd></div>
+        </dl>
+        <p class="error" id="errorBox"></p>
+      </div>
+
+      <div class="panel log-panel">
+        <div class="panel-head">
+          <h2>运行日志</h2>
+          <span id="logCount">0 条</span>
+        </div>
+        <div class="logs" id="logs"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

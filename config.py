@@ -1,0 +1,18 @@
+import os
+
+
+API_KEY = os.getenv("BINANCE_API_KEY", "")
+API_SECRET = os.getenv("BINANCE_API_SECRET", "")
+
+HTTP_PROXY = os.getenv("HTTP_PROXY", "http://127.0.0.1:7897")
+HTTPS_PROXY = os.getenv("HTTPS_PROXY", HTTP_PROXY)
+
+SYMBOL = 'BTC/USDT'
+TIMEFRAME = '1h'
+
+SHORT_MA = 5
+LONG_MA = 20
+
+RISK_PERCENT = 0.01
+
+TEST_MODE = True
