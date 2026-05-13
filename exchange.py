@@ -8,7 +8,6 @@ exchange_config = {
     'timeout': 15000,
     'options': {
         'defaultType': 'spot',
-        'fetchMarkets': ['spot'],
     },
 }
 

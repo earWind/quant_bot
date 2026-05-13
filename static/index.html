@@ -10,20 +10,23 @@
   <header class="topbar">
     <div>
       <p class="eyebrow">Quant Bot</p>
-      <h1>交易后台</h1>
+      <h1>策略工作台</h1>
     </div>
-    <div class="status-pill" id="runningStatus">Loading</div>
+    <div class="topbar-meta">
+      <span id="testMode">--</span>
+      <div class="status-pill" id="runningStatus">加载中</div>
+    </div>
   </header>
 
   <main class="shell">
-    <section class="metrics">
+    <section class="market-strip">
+      <article class="metric primary-metric">
+        <span>当前价格</span>
+        <strong id="price">--</strong>
+      </article>
       <article class="metric">
         <span>交易对</span>
         <strong id="symbol">--</strong>
-      </article>
-      <article class="metric">
-        <span>当前价格</span>
-        <strong id="price">--</strong>
       </article>
       <article class="metric signal">
         <span>交易信号</span>
@@ -35,35 +38,150 @@
       </article>
     </section>
 
-    <section class="layout">
-      <div class="panel control-panel">
+    <section class="workspace">
+      <form class="panel settings-panel" id="settingsForm">
         <div class="panel-head">
-          <h2>控制台</h2>
-          <span id="testMode">--</span>
+          <div>
+            <p class="section-kicker">Strategy</p>
+            <h2>参数调节</h2>
+          </div>
+          <span id="settingsStatus">未修改</span>
         </div>
-        <div class="button-row">
-          <button id="startBtn" class="primary">启动</button>
-          <button id="stopBtn">停止</button>
-          <button id="runOnceBtn">刷新一次</button>
-        </div>
-        <dl class="settings">
-          <div><dt>周期</dt><dd id="timeframe">--</dd></div>
-          <div><dt>短均线</dt><dd id="shortMa">--</dd></div>
-          <div><dt>长均线</dt><dd id="longMa">--</dd></div>
-          <div><dt>风险比例</dt><dd id="riskPercent">--</dd></div>
-          <div><dt>上次更新</dt><dd id="lastUpdate">--</dd></div>
-          <div><dt>下次检查</dt><dd id="nextCheck">--</dd></div>
-        </dl>
-        <p class="error" id="errorBox"></p>
-      </div>
 
-      <div class="panel log-panel">
+        <div class="form-grid">
+          <label>
+            <span>交易对</span>
+            <input id="symbolInput" name="symbol" type="text" value="BTC/USDT">
+          </label>
+          <label>
+            <span>K 线周期</span>
+            <select id="timeframeInput" name="timeframe">
+              <option value="1m">1 分钟</option>
+              <option value="5m">5 分钟</option>
+              <option value="15m">15 分钟</option>
+              <option value="30m">30 分钟</option>
+              <option value="1h">1 小时</option>
+              <option value="4h">4 小时</option>
+              <option value="1d">1 天</option>
+            </select>
+          </label>
+          <label>
+            <span>短均线</span>
+            <input id="shortMaInput" name="short_ma" type="number" min="1" max="500" step="1">
+          </label>
+          <label>
+            <span>长均线</span>
+            <input id="longMaInput" name="long_ma" type="number" min="2" max="1000" step="1">
+          </label>
+          <label>
+            <span>买入条件</span>
+            <select id="buyConditionInput" name="buy_condition">
+              <option value="above">短均线高于长均线</option>
+              <option value="below">短均线低于长均线</option>
+            </select>
+          </label>
+          <label>
+            <span>卖出条件</span>
+            <select id="sellConditionInput" name="sell_condition">
+              <option value="below">短均线低于长均线</option>
+              <option value="above">短均线高于长均线</option>
+            </select>
+          </label>
+          <label>
+            <span>风险比例</span>
+            <input id="riskPercentInput" name="risk_percent" type="number" min="0.001" max="1" step="0.001">
+          </label>
+          <label>
+            <span>初始资金</span>
+            <input id="initialBalanceInput" name="initial_balance" type="number" min="1" step="1">
+          </label>
+          <label>
+            <span>回测 K 线数</span>
+            <input id="backtestLimitInput" name="backtest_limit" type="number" min="50" max="1000" step="50">
+          </label>
+        </div>
+
+        <div class="visual-builder">
+          <div class="rule-preview">
+            <span>买入条件</span>
+            <strong><b id="shortMaBuyLabel">MA5</b> <em id="buyOperatorLabel">高于</em> <b id="longMaBuyLabel">MA20</b></strong>
+          </div>
+          <div class="rule-preview sell-rule">
+            <span>卖出条件</span>
+            <strong><b id="shortMaSellLabel">MA5</b> <em id="sellOperatorLabel">低于</em> <b id="longMaSellLabel">MA20</b></strong>
+          </div>
+          <label class="range-control">
+            <span>短均线窗口 <b id="shortMaRangeValue">5</b></span>
+            <input id="shortMaRange" type="range" min="1" max="100" step="1">
+          </label>
+          <label class="range-control">
+            <span>长均线窗口 <b id="longMaRangeValue">20</b></span>
+            <input id="longMaRange" type="range" min="2" max="200" step="1">
+          </label>
+        </div>
+
+        <div class="action-row">
+          <button class="primary" id="saveSettingsBtn" type="submit">保存参数</button>
+          <button id="saveBacktestBtn" type="button">保存并回测</button>
+        </div>
+      </form>
+
+      <aside class="side-stack">
+        <div class="panel control-panel">
+          <div class="panel-head">
+            <div>
+              <p class="section-kicker">Run</p>
+              <h2>运行控制</h2>
+            </div>
+          </div>
+          <div class="control-grid">
+            <button id="startBtn" class="primary" type="button">启动</button>
+            <button id="stopBtn" type="button">停止</button>
+            <button id="runOnceBtn" type="button">刷新一次</button>
+            <button id="backtestBtn" type="button">查看回测</button>
+          </div>
+          <dl class="settings">
+            <div><dt>周期</dt><dd id="timeframe">--</dd></div>
+            <div><dt>均线</dt><dd><span id="shortMa">--</span> / <span id="longMa">--</span></dd></div>
+            <div><dt>风险比例</dt><dd id="riskPercent">--</dd></div>
+            <div><dt>初始资金</dt><dd id="initialBalance">--</dd></div>
+            <div><dt>回测数量</dt><dd id="backtestLimit">--</dd></div>
+            <div><dt>上次更新</dt><dd id="lastUpdate">--</dd></div>
+            <div><dt>下次检查</dt><dd id="nextCheck">--</dd></div>
+          </dl>
+          <p class="error" id="errorBox"></p>
+        </div>
+      </aside>
+
+      <section class="panel backtest-panel">
         <div class="panel-head">
-          <h2>运行日志</h2>
+          <div>
+            <p class="section-kicker">Backtest</p>
+            <h2>当前策略回测</h2>
+          </div>
+          <span id="backtestStatus">未运行</span>
+        </div>
+        <div class="backtest-grid">
+          <div><span>最终权益</span><strong id="btEquity">--</strong></div>
+          <div><span>策略收益</span><strong id="btReturn">--</strong></div>
+          <div><span>买入持有</span><strong id="btBuyHold">--</strong></div>
+          <div><span>最大回撤</span><strong id="btDrawdown">--</strong></div>
+          <div><span>交易次数</span><strong id="btTrades">--</strong></div>
+          <div><span>持仓状态</span><strong id="btOpen">--</strong></div>
+        </div>
+        <div class="trade-list" id="btTradeList"></div>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="panel-head">
+          <div>
+            <p class="section-kicker">Logs</p>
+            <h2>运行日志</h2>
+          </div>
           <span id="logCount">0 条</span>
         </div>
         <div class="logs" id="logs"></div>
-      </div>
+      </section>
     </section>
   </main>
 

@@ -1,6 +1,21 @@
 import pandas as pd
 
-def generate_signal(data, short_window=5, long_window=20):
+
+def condition_matches(short_ma, long_ma, condition):
+    if condition == "above":
+        return short_ma > long_ma
+    if condition == "below":
+        return short_ma < long_ma
+    raise ValueError(f"Unsupported condition: {condition}")
+
+
+def generate_signal(
+    data,
+    short_window=5,
+    long_window=20,
+    buy_condition="above",
+    sell_condition="below",
+):
 
     df = pd.DataFrame(data, columns=[
         'timestamp', 'open', 'high',
@@ -12,10 +27,10 @@ def generate_signal(data, short_window=5, long_window=20):
 
     latest = df.iloc[-1]
 
-    if latest['short_ma'] > latest['long_ma']:
+    if condition_matches(latest['short_ma'], latest['long_ma'], buy_condition):
         return 'BUY'
 
-    elif latest['short_ma'] < latest['long_ma']:
+    elif condition_matches(latest['short_ma'], latest['long_ma'], sell_condition):
         return 'SELL'
 
     return 'HOLD'
