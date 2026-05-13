@@ -16,6 +16,7 @@ env/
 # Logs and runtime output
 *.log
 logs/
+data/
 
 # Test and coverage output
 .pytest_cache/

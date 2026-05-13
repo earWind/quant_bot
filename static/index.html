@@ -50,6 +50,20 @@
 
         <div class="form-grid">
           <label>
+            <span>策略类型</span>
+            <select id="strategyTypeInput" name="strategy_type">
+              <option value="ma_turn">15 分钟均线拐头</option>
+              <option value="ma_cross">双均线位置</option>
+            </select>
+          </label>
+          <label>
+            <span>交易市场</span>
+            <select id="marketTypeInput" name="market_type">
+              <option value="spot">现货</option>
+              <option value="swap">合约</option>
+            </select>
+          </label>
+          <label>
             <span>交易对</span>
             <input id="symbolInput" name="symbol" type="text" value="BTC/USDT">
           </label>
@@ -96,19 +110,30 @@
             <input id="initialBalanceInput" name="initial_balance" type="number" min="1" step="1">
           </label>
           <label>
+            <span>OKX 手续费率</span>
+            <input id="feeRateInput" name="fee_rate" type="number" min="0" max="0.01" step="0.0001">
+          </label>
+          <label>
             <span>回测 K 线数</span>
-            <input id="backtestLimitInput" name="backtest_limit" type="number" min="50" max="1000" step="50">
+            <input id="backtestLimitInput" name="backtest_limit" type="number" min="50" max="100000" step="50">
+          </label>
+          <label>
+            <span>回测数据来源</span>
+            <select id="backtestDataSourceInput" name="backtest_data_source">
+              <option value="local">使用本地数据</option>
+              <option value="fetch">拉取最新并保存</option>
+            </select>
           </label>
         </div>
 
         <div class="visual-builder">
           <div class="rule-preview">
             <span>买入条件</span>
-            <strong><b id="shortMaBuyLabel">MA5</b> <em id="buyOperatorLabel">高于</em> <b id="longMaBuyLabel">MA20</b></strong>
+            <strong><b id="shortMaBuyLabel">MA20</b> <em id="buyOperatorLabel">拐头向上且 MA5 &gt; MA10 &gt;</em> <b id="longMaBuyLabel">MA20</b></strong>
           </div>
           <div class="rule-preview sell-rule">
             <span>卖出条件</span>
-            <strong><b id="shortMaSellLabel">MA5</b> <em id="sellOperatorLabel">低于</em> <b id="longMaSellLabel">MA20</b></strong>
+            <strong><b id="shortMaSellLabel">MA20</b> <em id="sellOperatorLabel">拐头向下或价格低于</em> <b id="longMaSellLabel">MA20</b></strong>
           </div>
           <label class="range-control">
             <span>短均线窗口 <b id="shortMaRangeValue">5</b></span>
@@ -140,12 +165,21 @@
             <button id="runOnceBtn" type="button">刷新一次</button>
             <button id="backtestBtn" type="button">查看回测</button>
           </div>
+          <div class="active-rule">
+            <span>当前策略规则</span>
+            <strong id="activeStrategyRule">--</strong>
+          </div>
           <dl class="settings">
+            <div><dt>策略</dt><dd id="strategyType">--</dd></div>
+            <div><dt>市场</dt><dd id="marketType">--</dd></div>
             <div><dt>周期</dt><dd id="timeframe">--</dd></div>
             <div><dt>均线</dt><dd><span id="shortMa">--</span> / <span id="longMa">--</span></dd></div>
             <div><dt>风险比例</dt><dd id="riskPercent">--</dd></div>
             <div><dt>初始资金</dt><dd id="initialBalance">--</dd></div>
+            <div><dt>手续费率</dt><dd id="feeRate">--</dd></div>
             <div><dt>回测数量</dt><dd id="backtestLimit">--</dd></div>
+            <div><dt>数据来源</dt><dd id="backtestDataSource">--</dd></div>
+            <div><dt>本地缓存</dt><dd id="cacheInfo">--</dd></div>
             <div><dt>上次更新</dt><dd id="lastUpdate">--</dd></div>
             <div><dt>下次检查</dt><dd id="nextCheck">--</dd></div>
           </dl>
@@ -166,8 +200,29 @@
           <div><span>策略收益</span><strong id="btReturn">--</strong></div>
           <div><span>买入持有</span><strong id="btBuyHold">--</strong></div>
           <div><span>最大回撤</span><strong id="btDrawdown">--</strong></div>
+          <div><span>手续费合计</span><strong id="btFees">--</strong></div>
           <div><span>交易次数</span><strong id="btTrades">--</strong></div>
           <div><span>持仓状态</span><strong id="btOpen">--</strong></div>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-legend">
+            <span><i class="legend-ma5"></i>MA5</span>
+            <span><i class="legend-ma10"></i>MA10</span>
+            <span><i class="legend-ma20"></i>MA20</span>
+            <span><i class="legend-buy"></i>买点</span>
+            <span><i class="legend-sell"></i>卖点</span>
+          </div>
+          <div class="chart-controls">
+            <label>
+              <span>显示 K 线 <b id="chartZoomValue">240</b></span>
+              <input id="chartZoomInput" type="range" min="50" max="5000" step="10" value="240">
+            </label>
+            <label>
+              <span>查看位置 <b id="chartPanValue">最新</b></span>
+              <input id="chartPanInput" type="range" min="0" max="0" step="1" value="0">
+            </label>
+          </div>
+          <canvas id="backtestChart" width="960" height="360"></canvas>
         </div>
         <div class="trade-list" id="btTradeList"></div>
       </section>
@@ -185,6 +240,6 @@
     </section>
   </main>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=20260513-ma-alignment"></script>
 </body>
 </html>

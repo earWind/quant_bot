@@ -1,7 +1,7 @@
 import unittest
 
 from risk import calculate_position
-from strategy import generate_signal
+from strategy import STRATEGY_MA_TURN, generate_signal
 
 
 def make_ohlcv(closes):
@@ -25,6 +25,66 @@ class StrategyTests(unittest.TestCase):
         signal = generate_signal(data, short_window=3, long_window=5)
 
         self.assertEqual(signal, "SELL")
+
+    def test_generate_ma_turn_buy_signal(self):
+        data = make_ohlcv([10] * 17 + [7, 7, 7, 7, 50])
+
+        signal = generate_signal(
+            data,
+            short_window=5,
+            long_window=20,
+            strategy_type=STRATEGY_MA_TURN,
+        )
+
+        self.assertEqual(signal, "BUY")
+
+    def test_generate_ma_turn_sell_signal(self):
+        data = make_ohlcv([10] * 17 + [13, 13, 13, 13, 2])
+
+        signal = generate_signal(
+            data,
+            short_window=5,
+            long_window=20,
+            strategy_type=STRATEGY_MA_TURN,
+        )
+
+        self.assertEqual(signal, "SELL")
+
+    def test_generate_ma_turn_uses_long_ma_window(self):
+        data = make_ohlcv([10] * 17 + [7, 7, 7, 7, 50])
+
+        signal = generate_signal(
+            data,
+            short_window=5,
+            long_window=20,
+            strategy_type=STRATEGY_MA_TURN,
+        )
+
+        self.assertEqual(signal, "BUY")
+
+    def test_generate_ma_turn_sells_when_price_below_long_ma(self):
+        data = make_ohlcv([10] * 19 + [9])
+
+        signal = generate_signal(
+            data,
+            short_window=5,
+            long_window=20,
+            strategy_type=STRATEGY_MA_TURN,
+        )
+
+        self.assertEqual(signal, "SELL")
+
+    def test_generate_ma_turn_holds_without_bullish_alignment(self):
+        data = make_ohlcv([10] * 17 + [7, 7, 7, 7, 12])
+
+        signal = generate_signal(
+            data,
+            short_window=5,
+            long_window=20,
+            strategy_type=STRATEGY_MA_TURN,
+        )
+
+        self.assertEqual(signal, "HOLD")
 
 
 class RiskTests(unittest.TestCase):

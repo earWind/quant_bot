@@ -320,6 +320,29 @@ select:focus {
   margin-bottom: 10px;
 }
 
+.active-rule {
+  margin: 0 0 10px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.active-rule span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.active-rule strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 button {
   min-height: 38px;
   border: 1px solid var(--line);
@@ -401,6 +424,99 @@ button.primary:hover {
   overflow-wrap: anywhere;
 }
 
+.chart-wrap {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 10px;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chart-legend i {
+  width: 20px;
+  height: 3px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.chart-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 8px;
+}
+
+.chart-controls label {
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.chart-controls span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.chart-controls b {
+  color: var(--ink);
+}
+
+.legend-ma5 {
+  background: #2563eb;
+}
+
+.legend-ma10 {
+  background: #a15c00;
+}
+
+.legend-ma20 {
+  background: var(--accent);
+}
+
+.legend-buy {
+  background: var(--good);
+}
+
+.legend-sell {
+  background: var(--bad);
+}
+
+#backtestChart {
+  width: 100%;
+  height: 360px;
+  display: block;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+#backtestChart.dragging {
+  cursor: grabbing;
+}
+
 .trade-list {
   max-height: 210px;
   overflow: auto;
@@ -410,7 +526,7 @@ button.primary:hover {
 
 .trade-row {
   display: grid;
-  grid-template-columns: 80px repeat(3, minmax(0, 1fr));
+  grid-template-columns: 70px repeat(4, minmax(0, 1fr));
   gap: 12px;
   padding: 9px 0;
   border-bottom: 1px solid var(--line);
@@ -519,6 +635,7 @@ button.primary:hover {
   .topbar-meta,
   .action-row,
   .control-grid,
+  .chart-controls,
   .form-grid,
   .visual-builder,
   .backtest-grid,

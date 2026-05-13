@@ -5,12 +5,17 @@ const els = {
   signal: document.querySelector("#signal"),
   amount: document.querySelector("#amount"),
   testMode: document.querySelector("#testMode"),
+  strategyType: document.querySelector("#strategyType"),
+  marketType: document.querySelector("#marketType"),
   timeframe: document.querySelector("#timeframe"),
   shortMa: document.querySelector("#shortMa"),
   longMa: document.querySelector("#longMa"),
   riskPercent: document.querySelector("#riskPercent"),
   initialBalance: document.querySelector("#initialBalance"),
+  feeRate: document.querySelector("#feeRate"),
   backtestLimit: document.querySelector("#backtestLimit"),
+  backtestDataSource: document.querySelector("#backtestDataSource"),
+  cacheInfo: document.querySelector("#cacheInfo"),
   lastUpdate: document.querySelector("#lastUpdate"),
   nextCheck: document.querySelector("#nextCheck"),
   errorBox: document.querySelector("#errorBox"),
@@ -22,8 +27,11 @@ const els = {
   backtestBtn: document.querySelector("#backtestBtn"),
   settingsForm: document.querySelector("#settingsForm"),
   settingsStatus: document.querySelector("#settingsStatus"),
+  activeStrategyRule: document.querySelector("#activeStrategyRule"),
   saveBacktestBtn: document.querySelector("#saveBacktestBtn"),
   symbolInput: document.querySelector("#symbolInput"),
+  strategyTypeInput: document.querySelector("#strategyTypeInput"),
+  marketTypeInput: document.querySelector("#marketTypeInput"),
   timeframeInput: document.querySelector("#timeframeInput"),
   shortMaInput: document.querySelector("#shortMaInput"),
   longMaInput: document.querySelector("#longMaInput"),
@@ -41,37 +49,74 @@ const els = {
   sellConditionInput: document.querySelector("#sellConditionInput"),
   riskPercentInput: document.querySelector("#riskPercentInput"),
   initialBalanceInput: document.querySelector("#initialBalanceInput"),
+  feeRateInput: document.querySelector("#feeRateInput"),
   backtestLimitInput: document.querySelector("#backtestLimitInput"),
+  backtestDataSourceInput: document.querySelector("#backtestDataSourceInput"),
   backtestStatus: document.querySelector("#backtestStatus"),
   btEquity: document.querySelector("#btEquity"),
   btReturn: document.querySelector("#btReturn"),
   btBuyHold: document.querySelector("#btBuyHold"),
   btDrawdown: document.querySelector("#btDrawdown"),
+  btFees: document.querySelector("#btFees"),
   btTrades: document.querySelector("#btTrades"),
   btOpen: document.querySelector("#btOpen"),
+  backtestChart: document.querySelector("#backtestChart"),
+  chartZoomInput: document.querySelector("#chartZoomInput"),
+  chartPanInput: document.querySelector("#chartPanInput"),
+  chartZoomValue: document.querySelector("#chartZoomValue"),
+  chartPanValue: document.querySelector("#chartPanValue"),
   btTradeList: document.querySelector("#btTradeList"),
 };
 
 let formInitialized = false;
+let latestChart = null;
+let chartDrag = null;
+
+function getConditionText(condition) {
+  return condition === "above" ? "高于" : "低于";
+}
+
+function describeStrategy(values) {
+  const timeframe = values.timeframe || "--";
+  const shortMa = values.short_ma || "--";
+  const longMa = values.long_ma || "--";
+  const marketName = values.market_type === "swap" ? "合约" : "现货";
+
+  if (values.strategy_type === "ma_turn") {
+    return `${marketName} / ${values.symbol} / ${timeframe} / MA${longMa} 拐头向上且 MA5 > MA10 > MA${longMa} 买入，MA${longMa} 拐头向下或价格低于 MA${longMa} 卖出`;
+  }
+
+  return `${marketName} / ${values.symbol} / ${timeframe} / MA${shortMa} ${getConditionText(values.buy_condition)} MA${longMa} 买入，MA${shortMa} ${getConditionText(values.sell_condition)} MA${longMa} 卖出`;
+}
+
+function syncActiveStrategyRule(values = readSettingsForm()) {
+  els.activeStrategyRule.textContent = describeStrategy(values);
+}
 
 function syncStrategyPreview() {
+  const strategyType = els.strategyTypeInput.value;
   const shortMa = Number(els.shortMaInput.value || 0);
   const longMa = Number(els.longMaInput.value || 0);
   const shortLabel = `MA${shortMa || "--"}`;
   const longLabel = `MA${longMa || "--"}`;
-  const buyOperator = els.buyConditionInput.value === "above" ? "高于" : "低于";
-  const sellOperator = els.sellConditionInput.value === "above" ? "高于" : "低于";
+  const buyOperator = strategyType === "ma_turn"
+    ? "拐头向上且 MA5 > MA10 >"
+    : (els.buyConditionInput.value === "above" ? "高于" : "低于");
+  const sellOperator = strategyType === "ma_turn"
+    ? "拐头向下或价格低于"
+    : (els.sellConditionInput.value === "above" ? "高于" : "低于");
 
   els.shortMaRange.value = Math.min(Math.max(shortMa || 1, 1), 100);
   els.longMaRange.value = Math.min(Math.max(longMa || 2, 2), 200);
   els.shortMaRangeValue.textContent = shortMa || "--";
   els.longMaRangeValue.textContent = longMa || "--";
-  els.shortMaBuyLabel.textContent = shortLabel;
-  els.longMaBuyLabel.textContent = longLabel;
-  els.shortMaSellLabel.textContent = shortLabel;
+  els.shortMaBuyLabel.textContent = strategyType === "ma_turn" ? longLabel : shortLabel;
+  els.longMaBuyLabel.textContent = strategyType === "ma_turn" ? longLabel : longLabel;
+  els.shortMaSellLabel.textContent = strategyType === "ma_turn" ? longLabel : shortLabel;
   els.longMaSellLabel.textContent = longLabel;
   els.buyOperatorLabel.textContent = buyOperator;
   els.sellOperatorLabel.textContent = sellOperator;
+  syncActiveStrategyRule();
 }
 
 function formatNumber(value, digits = 6) {
@@ -90,8 +135,255 @@ function formatPercent(value) {
   return `${formatNumber(value, 2)}%`;
 }
 
+function getVisibleChart(chart) {
+  const candles = chart?.candles || [];
+  if (!candles.length) {
+    return { candles: [], markers: [] };
+  }
+
+  const requestedWindow = Number(els.chartZoomInput.value || 240);
+  const windowSize = Math.min(Math.max(requestedWindow, 50), candles.length);
+  const maxStart = Math.max(0, candles.length - windowSize);
+  const start = Math.min(Number(els.chartPanInput.value || maxStart), maxStart);
+  const end = start + windowSize;
+
+  els.chartZoomInput.max = String(Math.max(50, candles.length));
+  els.chartZoomInput.value = String(windowSize);
+  els.chartPanInput.max = String(maxStart);
+  els.chartPanInput.value = String(start);
+  els.chartZoomValue.textContent = String(windowSize);
+  els.chartPanValue.textContent = start === maxStart ? "最新" : `${start + 1}-${end}`;
+
+  return {
+    candles: candles.slice(start, end),
+    markers: (chart.markers || [])
+      .filter((marker) => marker.index >= start && marker.index < end)
+      .map((marker) => ({
+        ...marker,
+        index: marker.index - start,
+      })),
+  };
+}
+
+function clampChartStart(start, windowSize, total) {
+  return Math.min(Math.max(0, start), Math.max(0, total - windowSize));
+}
+
+function setChartView(windowSize, start) {
+  if (!latestChart?.candles?.length) {
+    return;
+  }
+
+  const total = latestChart.candles.length;
+  const nextWindow = Math.min(Math.max(Math.round(windowSize), 50), total);
+  const nextStart = clampChartStart(Math.round(start), nextWindow, total);
+
+  els.chartZoomInput.max = String(Math.max(50, total));
+  els.chartZoomInput.value = String(nextWindow);
+  els.chartPanInput.max = String(Math.max(0, total - nextWindow));
+  els.chartPanInput.value = String(nextStart);
+  drawBacktestChart(latestChart);
+}
+
+function handleChartWheel(event) {
+  if (!latestChart?.candles?.length) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const total = latestChart.candles.length;
+  const rect = els.backtestChart.getBoundingClientRect();
+  const currentWindow = Number(els.chartZoomInput.value || 240);
+  const currentStart = Number(els.chartPanInput.value || 0);
+  const cursorRatio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
+  const focalIndex = currentStart + currentWindow * cursorRatio;
+  const zoomFactor = event.deltaY < 0 ? 0.82 : 1.22;
+  const nextWindow = Math.min(Math.max(currentWindow * zoomFactor, 50), total);
+  const nextStart = focalIndex - nextWindow * cursorRatio;
+
+  setChartView(nextWindow, nextStart);
+}
+
+function handleChartPointerDown(event) {
+  if (!latestChart?.candles?.length) {
+    return;
+  }
+
+  els.backtestChart.setPointerCapture(event.pointerId);
+  chartDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startPan: Number(els.chartPanInput.value || 0),
+    windowSize: Number(els.chartZoomInput.value || 240),
+    total: latestChart.candles.length,
+  };
+  els.backtestChart.classList.add("dragging");
+}
+
+function handleChartPointerMove(event) {
+  if (!chartDrag || chartDrag.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const rect = els.backtestChart.getBoundingClientRect();
+  const paddingLeft = 10;
+  const paddingRight = 58;
+  const plotWidth = Math.max(1, rect.width - paddingLeft - paddingRight);
+  const candlesPerPixel = chartDrag.windowSize / plotWidth;
+  const deltaCandles = (event.clientX - chartDrag.startX) * candlesPerPixel;
+  const nextStart = chartDrag.startPan - deltaCandles;
+
+  setChartView(chartDrag.windowSize, nextStart);
+}
+
+function endChartDrag(event) {
+  if (!chartDrag || chartDrag.pointerId !== event.pointerId) {
+    return;
+  }
+
+  chartDrag = null;
+  els.backtestChart.classList.remove("dragging");
+}
+
+function drawBacktestChart(chart) {
+  const canvas = els.backtestChart;
+  if (!canvas || !chart?.candles?.length) {
+    return;
+  }
+  const visibleChart = getVisibleChart(chart);
+  if (!visibleChart.candles.length) {
+    return;
+  }
+
+  const ctx = canvas.getContext("2d");
+  const ratio = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const cssWidth = Math.max(rect.width, 320);
+  const cssHeight = 360;
+
+  canvas.width = Math.floor(cssWidth * ratio);
+  canvas.height = Math.floor(cssHeight * ratio);
+  canvas.style.height = `${cssHeight}px`;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+  const padding = { top: 18, right: 58, bottom: 28, left: 10 };
+  const plotWidth = cssWidth - padding.left - padding.right;
+  const plotHeight = cssHeight - padding.top - padding.bottom;
+  const candles = visibleChart.candles;
+  const maLines = [
+    { key: "ma5", color: "#2563eb" },
+    { key: "ma10", color: "#a15c00" },
+    { key: "ma20", color: "#0b6f75" },
+  ];
+  const prices = candles
+    .flatMap((candle) => [
+      candle.high,
+      candle.low,
+      candle.ma5,
+      candle.ma10,
+      candle.ma20,
+    ])
+    .filter((value) => value !== null);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice || 1;
+  const step = plotWidth / candles.length;
+  const bodyWidth = Math.max(2, Math.min(9, step * 0.58));
+  const yFor = (price) => padding.top + ((maxPrice - price) / priceRange) * plotHeight;
+  const xFor = (index) => padding.left + step * index + step / 2;
+
+  ctx.strokeStyle = "#d8e1e8";
+  ctx.lineWidth = 1;
+  ctx.font = "12px Segoe UI, Microsoft YaHei, Arial";
+  ctx.fillStyle = "#667481";
+
+  for (let i = 0; i <= 4; i += 1) {
+    const y = padding.top + (plotHeight / 4) * i;
+    const price = maxPrice - (priceRange / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(cssWidth - padding.right, y);
+    ctx.stroke();
+    ctx.fillText(formatNumber(price, 2), cssWidth - padding.right + 8, y + 4);
+  }
+
+  candles.forEach((candle, index) => {
+    const x = xFor(index);
+    const openY = yFor(candle.open);
+    const closeY = yFor(candle.close);
+    const highY = yFor(candle.high);
+    const lowY = yFor(candle.low);
+    const rising = candle.close >= candle.open;
+
+    ctx.strokeStyle = rising ? "#18794e" : "#c24130";
+    ctx.fillStyle = rising ? "rgba(24, 121, 78, 0.76)" : "rgba(194, 65, 48, 0.76)";
+    ctx.beginPath();
+    ctx.moveTo(x, highY);
+    ctx.lineTo(x, lowY);
+    ctx.stroke();
+    ctx.fillRect(
+      x - bodyWidth / 2,
+      Math.min(openY, closeY),
+      bodyWidth,
+      Math.max(1, Math.abs(openY - closeY)),
+    );
+  });
+
+  maLines.forEach((line) => {
+    ctx.strokeStyle = line.color;
+    ctx.lineWidth = line.key === "ma20" ? 2.2 : 1.6;
+    ctx.beginPath();
+    let maStarted = false;
+    candles.forEach((candle, index) => {
+      const value = candle[line.key];
+      if (value === null) {
+        return;
+      }
+      const x = xFor(index);
+      const y = yFor(value);
+      if (!maStarted) {
+        ctx.moveTo(x, y);
+        maStarted = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+  });
+
+  (visibleChart.markers || []).forEach((marker) => {
+    if (marker.index < 0 || marker.index >= candles.length) {
+      return;
+    }
+    const x = xFor(marker.index);
+    const y = yFor(marker.price);
+    const isBuy = marker.side === "BUY";
+
+    ctx.fillStyle = isBuy ? "#18794e" : "#c24130";
+    ctx.beginPath();
+    if (isBuy) {
+      ctx.moveTo(x, y - 14);
+      ctx.lineTo(x - 7, y - 2);
+      ctx.lineTo(x + 7, y - 2);
+    } else {
+      ctx.moveTo(x, y + 14);
+      ctx.lineTo(x - 7, y + 2);
+      ctx.lineTo(x + 7, y + 2);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.font = "11px Segoe UI, Microsoft YaHei, Arial";
+    ctx.fillText(marker.side, x + 8, isBuy ? y - 5 : y + 14);
+  });
+}
+
 function fillSettingsForm(state) {
   els.symbolInput.value = state.symbol;
+  els.strategyTypeInput.value = state.strategy_type || "ma_turn";
+  els.marketTypeInput.value = state.market_type || "spot";
   els.timeframeInput.value = state.timeframe;
   els.shortMaInput.value = state.short_ma;
   els.longMaInput.value = state.long_ma;
@@ -99,13 +391,18 @@ function fillSettingsForm(state) {
   els.sellConditionInput.value = state.sell_condition;
   els.riskPercentInput.value = state.risk_percent;
   els.initialBalanceInput.value = state.initial_balance;
+  els.feeRateInput.value = state.fee_rate;
   els.backtestLimitInput.value = state.backtest_limit;
+  els.backtestDataSourceInput.value = state.backtest_data_source || "fetch";
   syncStrategyPreview();
+  syncActiveStrategyRule(readSettingsForm());
 }
 
 function readSettingsForm() {
   return {
     symbol: els.symbolInput.value.trim().toUpperCase(),
+    strategy_type: els.strategyTypeInput.value,
+    market_type: els.marketTypeInput.value,
     timeframe: els.timeframeInput.value,
     short_ma: Number(els.shortMaInput.value),
     long_ma: Number(els.longMaInput.value),
@@ -113,7 +410,9 @@ function readSettingsForm() {
     sell_condition: els.sellConditionInput.value,
     risk_percent: Number(els.riskPercentInput.value),
     initial_balance: Number(els.initialBalanceInput.value),
+    fee_rate: Number(els.feeRateInput.value),
     backtest_limit: Number(els.backtestLimitInput.value),
+    backtest_data_source: els.backtestDataSourceInput.value,
   };
 }
 
@@ -121,7 +420,7 @@ function validateSettings(values) {
   if (!values.symbol.includes("/")) {
     throw new Error("交易对格式应类似 BTC/USDT");
   }
-  if (values.short_ma >= values.long_ma) {
+  if (values.strategy_type === "ma_cross" && values.short_ma >= values.long_ma) {
     throw new Error("短均线必须小于长均线");
   }
   if (values.buy_condition === values.sell_condition) {
@@ -132,6 +431,18 @@ function validateSettings(values) {
 function render(payload) {
   const state = payload.state;
   const logs = payload.logs || [];
+  const strategyNames = {
+    ma_turn: "15 分钟均线拐头",
+    ma_cross: "双均线位置",
+  };
+  const dataSourceNames = {
+    local: "使用本地数据",
+    fetch: "拉取最新并保存",
+  };
+  const marketTypeNames = {
+    spot: "现货",
+    swap: "合约",
+  };
 
   if (!formInitialized) {
     fillSettingsForm(state);
@@ -149,12 +460,29 @@ function render(payload) {
   els.signal.classList.add(String(state.signal).toLowerCase());
   els.amount.textContent = formatNumber(state.amount, 8);
   els.testMode.textContent = state.test_mode ? "测试模式" : "实盘模式";
+  els.strategyType.textContent = strategyNames[state.strategy_type] || state.strategy_type || "--";
+  els.marketType.textContent = marketTypeNames[state.market_type] || state.market_type || "--";
+  els.activeStrategyRule.textContent = describeStrategy({
+    symbol: state.symbol,
+    market_type: state.market_type,
+    timeframe: state.timeframe,
+    strategy_type: state.strategy_type,
+    short_ma: state.short_ma,
+    long_ma: state.long_ma,
+    buy_condition: state.buy_condition,
+    sell_condition: state.sell_condition,
+  });
   els.timeframe.textContent = state.timeframe;
   els.shortMa.textContent = state.short_ma;
   els.longMa.textContent = state.long_ma;
   els.riskPercent.textContent = formatPercent(state.risk_percent * 100);
   els.initialBalance.textContent = `$${formatNumber(state.initial_balance, 2)}`;
+  els.feeRate.textContent = formatPercent(state.fee_rate * 100);
   els.backtestLimit.textContent = state.backtest_limit;
+  els.backtestDataSource.textContent = dataSourceNames[state.backtest_data_source] || "--";
+  els.cacheInfo.textContent = state.cache_info?.exists
+    ? `${formatNumber(state.cache_info.count, 0)} 条`
+    : "暂无缓存";
   els.lastUpdate.textContent = state.last_update || "--";
   els.nextCheck.textContent = state.running ? `${state.next_check_seconds}s` : "--";
   els.errorBox.textContent = state.error || "";
@@ -175,8 +503,17 @@ function renderBacktest(result) {
   els.btReturn.textContent = formatPercent(result.return_pct);
   els.btBuyHold.textContent = formatPercent(result.buy_hold_pct);
   els.btDrawdown.textContent = formatPercent(result.max_drawdown_pct);
+  els.btFees.textContent = `$${formatNumber(result.total_fees, 2)}`;
   els.btTrades.textContent = result.trade_count;
   els.btOpen.textContent = result.position_open ? "持仓中" : "空仓";
+  latestChart = result.chart;
+  if (latestChart?.candles?.length) {
+    const defaultWindow = Math.min(240, latestChart.candles.length);
+    els.chartZoomInput.max = String(Math.max(50, latestChart.candles.length));
+    els.chartZoomInput.value = String(defaultWindow);
+    els.chartPanInput.value = String(Math.max(0, latestChart.candles.length - defaultWindow));
+  }
+  drawBacktestChart(latestChart);
 
   if (!result.trades.length) {
     els.btTradeList.innerHTML = "<p class=\"empty\">暂无交易记录</p>";
@@ -188,6 +525,7 @@ function renderBacktest(result) {
       <span>${trade.side}</span>
       <span>$${formatNumber(trade.price, 2)}</span>
       <span>${formatNumber(trade.amount, 8)}</span>
+      <span>$${formatNumber(trade.fee, 4)}</span>
       <span>$${formatNumber(trade.equity, 2)}</span>
     </div>
   `).join("");
@@ -229,6 +567,7 @@ async function runBacktest() {
   const payload = await response.json();
 
   if (payload.ok) {
+    render(payload);
     renderBacktest(payload.backtest);
   } else {
     els.backtestStatus.textContent = "失败";
@@ -263,6 +602,29 @@ els.longMaRange.addEventListener("input", () => {
   syncStrategyPreview();
 });
 
+els.chartZoomInput.addEventListener("input", () => {
+  if (!latestChart?.candles?.length) {
+    return;
+  }
+  const windowSize = Number(els.chartZoomInput.value);
+  const maxStart = Math.max(0, latestChart.candles.length - windowSize);
+  els.chartPanInput.value = String(maxStart);
+  drawBacktestChart(latestChart);
+});
+
+els.chartPanInput.addEventListener("input", () => {
+  if (!latestChart?.candles?.length) {
+    return;
+  }
+  drawBacktestChart(latestChart);
+});
+
+els.backtestChart.addEventListener("wheel", handleChartWheel, { passive: false });
+els.backtestChart.addEventListener("pointerdown", handleChartPointerDown);
+els.backtestChart.addEventListener("pointermove", handleChartPointerMove);
+els.backtestChart.addEventListener("pointerup", endChartDrag);
+els.backtestChart.addEventListener("pointercancel", endChartDrag);
+
 els.saveBacktestBtn.addEventListener("click", async () => {
   try {
     await saveSettings();
@@ -285,7 +647,15 @@ els.runOnceBtn.addEventListener("click", () => {
   request("/api/run-once", { method: "POST" });
 });
 
-els.backtestBtn.addEventListener("click", runBacktest);
+els.backtestBtn.addEventListener("click", async () => {
+  try {
+    await saveSettings();
+    await runBacktest();
+  } catch (error) {
+    els.settingsStatus.textContent = "保存失败";
+    els.errorBox.textContent = error.message;
+  }
+});
 
 refresh();
 setInterval(refresh, 3000);
