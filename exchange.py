@@ -14,13 +14,14 @@ def normalize_market_type(market_type="spot"):
 
 def create_exchange(market_type="spot"):
     market_type = normalize_market_type(market_type)
+    ccxt_market_type = "future" if market_type == "swap" else market_type
     exchange_config = {
         'apiKey': API_KEY,
         'secret': API_SECRET,
         'enableRateLimit': True,
         'timeout': 15000,
         'options': {
-            'defaultType': market_type,
+            'defaultType': ccxt_market_type,
         },
     }
 
@@ -41,8 +42,6 @@ def get_exchange(market_type="spot"):
 
 
 def normalize_symbol(symbol, market_type="spot"):
-    if market_type == "swap" and ":" not in symbol and symbol.endswith("/USDT"):
-        return f"{symbol}:USDT"
     return symbol
 
 

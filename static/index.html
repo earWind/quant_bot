@@ -20,22 +20,10 @@
 
   <main class="shell">
     <section class="market-strip">
-      <article class="metric primary-metric">
-        <span>当前价格</span>
-        <strong id="price">--</strong>
-      </article>
-      <article class="metric">
-        <span>交易对</span>
-        <strong id="symbol">--</strong>
-      </article>
-      <article class="metric signal">
-        <span>交易信号</span>
-        <strong id="signal">--</strong>
-      </article>
-      <article class="metric">
-        <span>建议数量</span>
-        <strong id="amount">--</strong>
-      </article>
+      <article class="metric primary-metric"><span>当前价格</span><strong id="price">--</strong></article>
+      <article class="metric"><span>交易对</span><strong id="symbol">--</strong></article>
+      <article class="metric signal"><span>交易信号</span><strong id="signal">--</strong></article>
+      <article class="metric"><span>建议数量</span><strong id="amount">--</strong></article>
     </section>
 
     <section class="workspace">
@@ -52,7 +40,9 @@
           <label>
             <span>策略类型</span>
             <select id="strategyTypeInput" name="strategy_type">
-              <option value="ma_turn">15 分钟均线拐头</option>
+              <option value="ma_turn">趋势交易</option>
+              <option value="ma_reversion">回归均线</option>
+              <option value="martingale">马丁格尔</option>
               <option value="ma_cross">双均线位置</option>
             </select>
           </label>
@@ -63,10 +53,7 @@
               <option value="swap">合约</option>
             </select>
           </label>
-          <label>
-            <span>交易对</span>
-            <input id="symbolInput" name="symbol" type="text" value="BTC/USDT">
-          </label>
+          <label><span>交易对</span><input id="symbolInput" name="symbol" type="text" value="BTC/USDT"></label>
           <label>
             <span>K 线周期</span>
             <select id="timeframeInput" name="timeframe">
@@ -79,14 +66,8 @@
               <option value="1d">1 天</option>
             </select>
           </label>
-          <label>
-            <span>短均线</span>
-            <input id="shortMaInput" name="short_ma" type="number" min="1" max="500" step="1">
-          </label>
-          <label>
-            <span>长均线</span>
-            <input id="longMaInput" name="long_ma" type="number" min="2" max="1000" step="1">
-          </label>
+          <label><span>短均线</span><input id="shortMaInput" name="short_ma" type="number" min="1" max="500" step="1"></label>
+          <label><span>长均线</span><input id="longMaInput" name="long_ma" type="number" min="2" max="1000" step="1"></label>
           <label>
             <span>买入条件</span>
             <select id="buyConditionInput" name="buy_condition">
@@ -101,22 +82,10 @@
               <option value="above">短均线高于长均线</option>
             </select>
           </label>
-          <label>
-            <span>风险比例</span>
-            <input id="riskPercentInput" name="risk_percent" type="number" min="0.001" max="1" step="0.001">
-          </label>
-          <label>
-            <span>初始资金</span>
-            <input id="initialBalanceInput" name="initial_balance" type="number" min="1" step="1">
-          </label>
-          <label>
-            <span>OKX 手续费率</span>
-            <input id="feeRateInput" name="fee_rate" type="number" min="0" max="0.01" step="0.0001">
-          </label>
-          <label>
-            <span>回测 K 线数</span>
-            <input id="backtestLimitInput" name="backtest_limit" type="number" min="50" max="100000" step="50">
-          </label>
+          <label><span>风险比例</span><input id="riskPercentInput" name="risk_percent" type="number" min="0.001" max="1" step="0.001"></label>
+          <label><span>初始资金</span><input id="initialBalanceInput" name="initial_balance" type="number" min="1" step="1"></label>
+          <label><span>手续费率</span><input id="feeRateInput" name="fee_rate" type="number" min="0" max="0.01" step="0.0001"></label>
+          <label><span>回测 K 线数</span><input id="backtestLimitInput" name="backtest_limit" type="number" min="50" max="100000" step="50"></label>
           <label>
             <span>回测数据来源</span>
             <select id="backtestDataSourceInput" name="backtest_data_source">
@@ -129,11 +98,11 @@
         <div class="visual-builder">
           <div class="rule-preview">
             <span>买入条件</span>
-            <strong><b id="shortMaBuyLabel">MA20</b> <em id="buyOperatorLabel">拐头向上且 MA5 &gt; MA10 &gt;</em> <b id="longMaBuyLabel">MA20</b></strong>
+            <strong><b id="shortMaBuyLabel"></b> <em id="buyOperatorLabel">--</em> <b id="longMaBuyLabel"></b></strong>
           </div>
           <div class="rule-preview sell-rule">
             <span>卖出条件</span>
-            <strong><b id="shortMaSellLabel">MA20</b> <em id="sellOperatorLabel">拐头向下或价格低于</em> <b id="longMaSellLabel">MA20</b></strong>
+            <strong><b id="shortMaSellLabel"></b> <em id="sellOperatorLabel">--</em> <b id="longMaSellLabel"></b></strong>
           </div>
           <label class="range-control">
             <span>短均线窗口 <b id="shortMaRangeValue">5</b></span>
@@ -153,12 +122,7 @@
 
       <aside class="side-stack">
         <div class="panel control-panel">
-          <div class="panel-head">
-            <div>
-              <p class="section-kicker">Run</p>
-              <h2>运行控制</h2>
-            </div>
-          </div>
+          <div class="panel-head"><div><p class="section-kicker">Run</p><h2>运行控制</h2></div></div>
           <div class="control-grid">
             <button id="startBtn" class="primary" type="button">启动</button>
             <button id="stopBtn" type="button">停止</button>
@@ -188,13 +152,7 @@
       </aside>
 
       <section class="panel backtest-panel">
-        <div class="panel-head">
-          <div>
-            <p class="section-kicker">Backtest</p>
-            <h2>当前策略回测</h2>
-          </div>
-          <span id="backtestStatus">未运行</span>
-        </div>
+        <div class="panel-head"><div><p class="section-kicker">Backtest</p><h2>当前策略回测</h2></div><span id="backtestStatus">未运行</span></div>
         <div class="backtest-grid">
           <div><span>最终权益</span><strong id="btEquity">--</strong></div>
           <div><span>策略收益</span><strong id="btReturn">--</strong></div>
@@ -213,14 +171,8 @@
             <span><i class="legend-sell"></i>卖点</span>
           </div>
           <div class="chart-controls">
-            <label>
-              <span>显示 K 线 <b id="chartZoomValue">240</b></span>
-              <input id="chartZoomInput" type="range" min="50" max="5000" step="10" value="240">
-            </label>
-            <label>
-              <span>查看位置 <b id="chartPanValue">最新</b></span>
-              <input id="chartPanInput" type="range" min="0" max="0" step="1" value="0">
-            </label>
+            <label><span>显示 K 线 <b id="chartZoomValue">240</b></span><input id="chartZoomInput" type="range" min="50" max="5000" step="10" value="240"></label>
+            <label><span>查看位置 <b id="chartPanValue">最新</b></span><input id="chartPanInput" type="range" min="0" max="0" step="1" value="0"></label>
           </div>
           <canvas id="backtestChart" width="960" height="360"></canvas>
         </div>
@@ -228,18 +180,12 @@
       </section>
 
       <section class="panel log-panel">
-        <div class="panel-head">
-          <div>
-            <p class="section-kicker">Logs</p>
-            <h2>运行日志</h2>
-          </div>
-          <span id="logCount">0 条</span>
-        </div>
+        <div class="panel-head"><div><p class="section-kicker">Logs</p><h2>运行日志</h2></div><span id="logCount">0 条</span></div>
         <div class="logs" id="logs"></div>
       </section>
     </section>
   </main>
 
-  <script src="/static/app.js?v=20260513-ma-alignment"></script>
+  <script src="/static/app.js?v=20260514-martingale"></script>
 </body>
 </html>

@@ -83,7 +83,13 @@ function describeStrategy(values) {
   const marketName = values.market_type === "swap" ? "合约" : "现货";
 
   if (values.strategy_type === "ma_turn") {
-    return `${marketName} / ${values.symbol} / ${timeframe} / MA${longMa} 拐头向上且 MA5 > MA10 > MA${longMa} 买入，MA${longMa} 拐头向下或价格低于 MA${longMa} 卖出`;
+    return `${marketName} / ${values.symbol} / ${timeframe} / 趋势交易：价格 > MA5 > MA10 > MA20 且 MA20 上行买入；价格跌破 MA20 或 MA5 跌破 MA10 卖出`;
+  }
+  if (values.strategy_type === "ma_reversion") {
+    return `${marketName} / ${values.symbol} / ${timeframe} / 回归均线：MA5 > MA10 > MA20，上一根 K 线跌幅 >= 0.5% 且收盘价低于 MA5 买入；持有到下一根 K 线结束或再次跌超 0.5% 卖出`;
+  }
+  if (values.strategy_type === "martingale") {
+    return `${marketName} / ${values.symbol} / ${timeframe} / 马丁格尔：单根 K 线跌幅 >= 0.5% 首买；每下跌 1% 按 2 倍加仓，最多 5 档；均价上方 0.8% 止盈`;
   }
 
   return `${marketName} / ${values.symbol} / ${timeframe} / MA${shortMa} ${getConditionText(values.buy_condition)} MA${longMa} 买入，MA${shortMa} ${getConditionText(values.sell_condition)} MA${longMa} 卖出`;
@@ -99,23 +105,27 @@ function syncStrategyPreview() {
   const longMa = Number(els.longMaInput.value || 0);
   const shortLabel = `MA${shortMa || "--"}`;
   const longLabel = `MA${longMa || "--"}`;
-  const buyOperator = strategyType === "ma_turn"
-    ? "拐头向上且 MA5 > MA10 >"
-    : (els.buyConditionInput.value === "above" ? "高于" : "低于");
-  const sellOperator = strategyType === "ma_turn"
-    ? "拐头向下或价格低于"
-    : (els.sellConditionInput.value === "above" ? "高于" : "低于");
+  const customPreview = {
+    ma_turn: ["价格 > MA5 > MA10 > 且 MA20 上行", "价格跌破 MA20 或 MA5 跌破 MA10"],
+    ma_reversion: ["MA5 > MA10 > MA20，上一根 K 线跌幅 >= 0.5% 且收盘价 < MA5", "持有到下一根 K 线结束或再次跌超 0.5%"],
+    martingale: ["单根 K 线跌幅 >= 0.5% 首买；每跌 1% 加仓", "均价上方 0.8% 止盈"],
+  };
+  const usesCustomPreview = Boolean(customPreview[strategyType]);
 
   els.shortMaRange.value = Math.min(Math.max(shortMa || 1, 1), 100);
   els.longMaRange.value = Math.min(Math.max(longMa || 2, 2), 200);
   els.shortMaRangeValue.textContent = shortMa || "--";
   els.longMaRangeValue.textContent = longMa || "--";
-  els.shortMaBuyLabel.textContent = strategyType === "ma_turn" ? longLabel : shortLabel;
-  els.longMaBuyLabel.textContent = strategyType === "ma_turn" ? longLabel : longLabel;
-  els.shortMaSellLabel.textContent = strategyType === "ma_turn" ? longLabel : shortLabel;
-  els.longMaSellLabel.textContent = longLabel;
-  els.buyOperatorLabel.textContent = buyOperator;
-  els.sellOperatorLabel.textContent = sellOperator;
+  els.shortMaBuyLabel.textContent = usesCustomPreview ? "" : shortLabel;
+  els.longMaBuyLabel.textContent = usesCustomPreview ? "" : longLabel;
+  els.shortMaSellLabel.textContent = usesCustomPreview ? "" : shortLabel;
+  els.longMaSellLabel.textContent = usesCustomPreview ? "" : longLabel;
+  els.buyOperatorLabel.textContent = usesCustomPreview
+    ? customPreview[strategyType][0]
+    : (els.buyConditionInput.value === "above" ? "高于" : "低于");
+  els.sellOperatorLabel.textContent = usesCustomPreview
+    ? customPreview[strategyType][1]
+    : (els.sellConditionInput.value === "above" ? "高于" : "低于");
   syncActiveStrategyRule();
 }
 
@@ -123,9 +133,7 @@ function formatNumber(value, digits = 6) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return "--";
   }
-  return Number(value).toLocaleString("en-US", {
-    maximumFractionDigits: digits,
-  });
+  return Number(value).toLocaleString("en-US", { maximumFractionDigits: digits });
 }
 
 function formatPercent(value) {
@@ -158,10 +166,7 @@ function getVisibleChart(chart) {
     candles: candles.slice(start, end),
     markers: (chart.markers || [])
       .filter((marker) => marker.index >= start && marker.index < end)
-      .map((marker) => ({
-        ...marker,
-        index: marker.index - start,
-      })),
+      .map((marker) => ({ ...marker, index: marker.index - start })),
   };
 }
 
@@ -173,11 +178,9 @@ function setChartView(windowSize, start) {
   if (!latestChart?.candles?.length) {
     return;
   }
-
   const total = latestChart.candles.length;
   const nextWindow = Math.min(Math.max(Math.round(windowSize), 50), total);
   const nextStart = clampChartStart(Math.round(start), nextWindow, total);
-
   els.chartZoomInput.max = String(Math.max(50, total));
   els.chartZoomInput.value = String(nextWindow);
   els.chartPanInput.max = String(Math.max(0, total - nextWindow));
@@ -189,9 +192,7 @@ function handleChartWheel(event) {
   if (!latestChart?.candles?.length) {
     return;
   }
-
   event.preventDefault();
-
   const total = latestChart.candles.length;
   const rect = els.backtestChart.getBoundingClientRect();
   const currentWindow = Number(els.chartZoomInput.value || 240);
@@ -201,7 +202,6 @@ function handleChartWheel(event) {
   const zoomFactor = event.deltaY < 0 ? 0.82 : 1.22;
   const nextWindow = Math.min(Math.max(currentWindow * zoomFactor, 50), total);
   const nextStart = focalIndex - nextWindow * cursorRatio;
-
   setChartView(nextWindow, nextStart);
 }
 
@@ -209,7 +209,6 @@ function handleChartPointerDown(event) {
   if (!latestChart?.candles?.length) {
     return;
   }
-
   els.backtestChart.setPointerCapture(event.pointerId);
   chartDrag = {
     pointerId: event.pointerId,
@@ -225,15 +224,10 @@ function handleChartPointerMove(event) {
   if (!chartDrag || chartDrag.pointerId !== event.pointerId) {
     return;
   }
-
   const rect = els.backtestChart.getBoundingClientRect();
-  const paddingLeft = 10;
-  const paddingRight = 58;
-  const plotWidth = Math.max(1, rect.width - paddingLeft - paddingRight);
+  const plotWidth = Math.max(1, rect.width - 10 - 58);
   const candlesPerPixel = chartDrag.windowSize / plotWidth;
-  const deltaCandles = (event.clientX - chartDrag.startX) * candlesPerPixel;
-  const nextStart = chartDrag.startPan - deltaCandles;
-
+  const nextStart = chartDrag.startPan - (event.clientX - chartDrag.startX) * candlesPerPixel;
   setChartView(chartDrag.windowSize, nextStart);
 }
 
@@ -241,7 +235,6 @@ function endChartDrag(event) {
   if (!chartDrag || chartDrag.pointerId !== event.pointerId) {
     return;
   }
-
   chartDrag = null;
   els.backtestChart.classList.remove("dragging");
 }
@@ -261,7 +254,6 @@ function drawBacktestChart(chart) {
   const rect = canvas.getBoundingClientRect();
   const cssWidth = Math.max(rect.width, 320);
   const cssHeight = 360;
-
   canvas.width = Math.floor(cssWidth * ratio);
   canvas.height = Math.floor(cssHeight * ratio);
   canvas.style.height = `${cssHeight}px`;
@@ -272,20 +264,7 @@ function drawBacktestChart(chart) {
   const plotWidth = cssWidth - padding.left - padding.right;
   const plotHeight = cssHeight - padding.top - padding.bottom;
   const candles = visibleChart.candles;
-  const maLines = [
-    { key: "ma5", color: "#2563eb" },
-    { key: "ma10", color: "#a15c00" },
-    { key: "ma20", color: "#0b6f75" },
-  ];
-  const prices = candles
-    .flatMap((candle) => [
-      candle.high,
-      candle.low,
-      candle.ma5,
-      candle.ma10,
-      candle.ma20,
-    ])
-    .filter((value) => value !== null);
+  const prices = candles.flatMap((c) => [c.high, c.low, c.ma5, c.ma10, c.ma20]).filter((v) => v !== null);
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
   const priceRange = maxPrice - minPrice || 1;
@@ -298,7 +277,6 @@ function drawBacktestChart(chart) {
   ctx.lineWidth = 1;
   ctx.font = "12px Segoe UI, Microsoft YaHei, Arial";
   ctx.fillStyle = "#667481";
-
   for (let i = 0; i <= 4; i += 1) {
     const y = padding.top + (plotHeight / 4) * i;
     const price = maxPrice - (priceRange / 4) * i;
@@ -313,39 +291,33 @@ function drawBacktestChart(chart) {
     const x = xFor(index);
     const openY = yFor(candle.open);
     const closeY = yFor(candle.close);
-    const highY = yFor(candle.high);
-    const lowY = yFor(candle.low);
     const rising = candle.close >= candle.open;
-
     ctx.strokeStyle = rising ? "#18794e" : "#c24130";
     ctx.fillStyle = rising ? "rgba(24, 121, 78, 0.76)" : "rgba(194, 65, 48, 0.76)";
     ctx.beginPath();
-    ctx.moveTo(x, highY);
-    ctx.lineTo(x, lowY);
+    ctx.moveTo(x, yFor(candle.high));
+    ctx.lineTo(x, yFor(candle.low));
     ctx.stroke();
-    ctx.fillRect(
-      x - bodyWidth / 2,
-      Math.min(openY, closeY),
-      bodyWidth,
-      Math.max(1, Math.abs(openY - closeY)),
-    );
+    ctx.fillRect(x - bodyWidth / 2, Math.min(openY, closeY), bodyWidth, Math.max(1, Math.abs(openY - closeY)));
   });
 
-  maLines.forEach((line) => {
+  [
+    { key: "ma5", color: "#2563eb" },
+    { key: "ma10", color: "#a15c00" },
+    { key: "ma20", color: "#0b6f75" },
+  ].forEach((line) => {
     ctx.strokeStyle = line.color;
     ctx.lineWidth = line.key === "ma20" ? 2.2 : 1.6;
     ctx.beginPath();
-    let maStarted = false;
+    let started = false;
     candles.forEach((candle, index) => {
       const value = candle[line.key];
-      if (value === null) {
-        return;
-      }
+      if (value === null) return;
       const x = xFor(index);
       const y = yFor(value);
-      if (!maStarted) {
+      if (!started) {
         ctx.moveTo(x, y);
-        maStarted = true;
+        started = true;
       } else {
         ctx.lineTo(x, y);
       }
@@ -354,13 +326,10 @@ function drawBacktestChart(chart) {
   });
 
   (visibleChart.markers || []).forEach((marker) => {
-    if (marker.index < 0 || marker.index >= candles.length) {
-      return;
-    }
+    if (marker.index < 0 || marker.index >= candles.length) return;
     const x = xFor(marker.index);
     const y = yFor(marker.price);
     const isBuy = marker.side === "BUY";
-
     ctx.fillStyle = isBuy ? "#18794e" : "#c24130";
     ctx.beginPath();
     if (isBuy) {
@@ -374,7 +343,6 @@ function drawBacktestChart(chart) {
     }
     ctx.closePath();
     ctx.fill();
-
     ctx.font = "11px Segoe UI, Microsoft YaHei, Arial";
     ctx.fillText(marker.side, x + 8, isBuy ? y - 5 : y + 14);
   });
@@ -417,13 +385,11 @@ function readSettingsForm() {
 }
 
 function validateSettings(values) {
-  if (!values.symbol.includes("/")) {
-    throw new Error("交易对格式应类似 BTC/USDT");
-  }
+  if (!values.symbol.includes("/")) throw new Error("交易对格式应类似 BTC/USDT");
   if (values.strategy_type === "ma_cross" && values.short_ma >= values.long_ma) {
     throw new Error("短均线必须小于长均线");
   }
-  if (values.buy_condition === values.sell_condition) {
+  if (values.strategy_type === "ma_cross" && values.buy_condition === values.sell_condition) {
     throw new Error("买入条件和卖出条件不能相同");
   }
 }
@@ -432,17 +398,13 @@ function render(payload) {
   const state = payload.state;
   const logs = payload.logs || [];
   const strategyNames = {
-    ma_turn: "15 分钟均线拐头",
+    ma_turn: "趋势交易",
+    ma_reversion: "回归均线",
+    martingale: "马丁格尔",
     ma_cross: "双均线位置",
   };
-  const dataSourceNames = {
-    local: "使用本地数据",
-    fetch: "拉取最新并保存",
-  };
-  const marketTypeNames = {
-    spot: "现货",
-    swap: "合约",
-  };
+  const dataSourceNames = { local: "使用本地数据", fetch: "拉取最新并保存" };
+  const marketTypeNames = { spot: "现货", swap: "合约" };
 
   if (!formInitialized) {
     fillSettingsForm(state);
@@ -452,7 +414,6 @@ function render(payload) {
   els.runningStatus.textContent = state.running ? "运行中" : "已停止";
   els.runningStatus.classList.toggle("on", state.running);
   els.runningStatus.classList.toggle("off", !state.running);
-
   els.symbol.textContent = state.symbol;
   els.price.textContent = formatNumber(state.price, 2);
   els.signal.textContent = state.signal || "--";
@@ -462,16 +423,7 @@ function render(payload) {
   els.testMode.textContent = state.test_mode ? "测试模式" : "实盘模式";
   els.strategyType.textContent = strategyNames[state.strategy_type] || state.strategy_type || "--";
   els.marketType.textContent = marketTypeNames[state.market_type] || state.market_type || "--";
-  els.activeStrategyRule.textContent = describeStrategy({
-    symbol: state.symbol,
-    market_type: state.market_type,
-    timeframe: state.timeframe,
-    strategy_type: state.strategy_type,
-    short_ma: state.short_ma,
-    long_ma: state.long_ma,
-    buy_condition: state.buy_condition,
-    sell_condition: state.sell_condition,
-  });
+  els.activeStrategyRule.textContent = describeStrategy(state);
   els.timeframe.textContent = state.timeframe;
   els.shortMa.textContent = state.short_ma;
   els.longMa.textContent = state.long_ma;
@@ -480,14 +432,11 @@ function render(payload) {
   els.feeRate.textContent = formatPercent(state.fee_rate * 100);
   els.backtestLimit.textContent = state.backtest_limit;
   els.backtestDataSource.textContent = dataSourceNames[state.backtest_data_source] || "--";
-  els.cacheInfo.textContent = state.cache_info?.exists
-    ? `${formatNumber(state.cache_info.count, 0)} 条`
-    : "暂无缓存";
+  els.cacheInfo.textContent = state.cache_info?.exists ? `${formatNumber(state.cache_info.count, 0)} 条` : "暂无缓存";
   els.lastUpdate.textContent = state.last_update || "--";
   els.nextCheck.textContent = state.running ? `${state.next_check_seconds}s` : "--";
   els.errorBox.textContent = state.error || "";
   els.logCount.textContent = `${logs.length} 条`;
-
   els.logs.innerHTML = logs.map((item) => `
     <div class="log-row">
       <span>${item.time}</span>
@@ -514,12 +463,10 @@ function renderBacktest(result) {
     els.chartPanInput.value = String(Math.max(0, latestChart.candles.length - defaultWindow));
   }
   drawBacktestChart(latestChart);
-
   if (!result.trades.length) {
     els.btTradeList.innerHTML = "<p class=\"empty\">暂无交易记录</p>";
     return;
   }
-
   els.btTradeList.innerHTML = result.trades.map((trade) => `
     <div class="trade-row ${trade.side.toLowerCase()}">
       <span>${trade.side}</span>
@@ -547,11 +494,7 @@ async function saveSettings() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(values),
   });
-
-  if (!payload.ok) {
-    throw new Error(payload.error || "参数保存失败");
-  }
-
+  if (!payload.ok) throw new Error(payload.error || "参数保存失败");
   fillSettingsForm(payload.state);
   els.settingsStatus.textContent = "已保存";
   return payload;
@@ -565,7 +508,6 @@ async function runBacktest() {
   els.backtestStatus.textContent = "运行中...";
   const response = await fetch("/api/backtest", { method: "POST" });
   const payload = await response.json();
-
   if (payload.ok) {
     render(payload);
     renderBacktest(payload.backtest);
@@ -603,22 +545,12 @@ els.longMaRange.addEventListener("input", () => {
 });
 
 els.chartZoomInput.addEventListener("input", () => {
-  if (!latestChart?.candles?.length) {
-    return;
-  }
+  if (!latestChart?.candles?.length) return;
   const windowSize = Number(els.chartZoomInput.value);
-  const maxStart = Math.max(0, latestChart.candles.length - windowSize);
-  els.chartPanInput.value = String(maxStart);
+  els.chartPanInput.value = String(Math.max(0, latestChart.candles.length - windowSize));
   drawBacktestChart(latestChart);
 });
-
-els.chartPanInput.addEventListener("input", () => {
-  if (!latestChart?.candles?.length) {
-    return;
-  }
-  drawBacktestChart(latestChart);
-});
-
+els.chartPanInput.addEventListener("input", () => latestChart?.candles?.length && drawBacktestChart(latestChart));
 els.backtestChart.addEventListener("wheel", handleChartWheel, { passive: false });
 els.backtestChart.addEventListener("pointerdown", handleChartPointerDown);
 els.backtestChart.addEventListener("pointermove", handleChartPointerMove);
@@ -634,19 +566,9 @@ els.saveBacktestBtn.addEventListener("click", async () => {
     els.errorBox.textContent = error.message;
   }
 });
-
-els.startBtn.addEventListener("click", () => {
-  request("/api/start", { method: "POST" });
-});
-
-els.stopBtn.addEventListener("click", () => {
-  request("/api/stop", { method: "POST" });
-});
-
-els.runOnceBtn.addEventListener("click", () => {
-  request("/api/run-once", { method: "POST" });
-});
-
+els.startBtn.addEventListener("click", () => request("/api/start", { method: "POST" }));
+els.stopBtn.addEventListener("click", () => request("/api/stop", { method: "POST" }));
+els.runOnceBtn.addEventListener("click", () => request("/api/run-once", { method: "POST" }));
 els.backtestBtn.addEventListener("click", async () => {
   try {
     await saveSettings();

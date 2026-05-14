@@ -2,10 +2,22 @@ import pandas as pd
 
 from strategy import (
     STRATEGY_MA_CROSS,
+    STRATEGY_MA_REVERSION,
+    STRATEGY_MARTINGALE,
     STRATEGY_MA_TURN,
+    MARTINGALE_ENTRY_DROP_THRESHOLD,
+    REVERSION_DROP_THRESHOLD,
     condition_matches,
     ma_bullish_alignment_signal,
+    ma_reversion_entry_signal,
 )
+
+
+MARTINGALE_BASE_FRACTION = 0.1
+MARTINGALE_PRICE_STEP = 0.01
+MARTINGALE_MULTIPLIER = 2
+MARTINGALE_MAX_LEVELS = 5
+MARTINGALE_TAKE_PROFIT = 0.008
 
 
 def run_ma_backtest(
@@ -22,10 +34,10 @@ def run_ma_backtest(
         "timestamp", "open", "high", "low", "close", "volume"
     ])
 
-    required_window = long_window
+    required_window = 2 if strategy_type == STRATEGY_MARTINGALE else long_window
 
-    if len(df) < required_window + 2:
-        raise ValueError("Not enough candle data for the long moving average")
+    if len(df) < required_window:
+        raise ValueError("Not enough candle data for the selected strategy")
 
     df["ma5"] = df["close"].rolling(5).mean()
     df["ma10"] = df["close"].rolling(10).mean()
@@ -34,7 +46,7 @@ def run_ma_backtest(
     if strategy_type == STRATEGY_MA_CROSS:
         df["short_ma"] = df["close"].rolling(short_window).mean()
         df["long_ma"] = df["close"].rolling(long_window).mean()
-    elif strategy_type == STRATEGY_MA_TURN:
+    elif strategy_type in {STRATEGY_MA_TURN, STRATEGY_MA_REVERSION, STRATEGY_MARTINGALE}:
         df["signal_ma"] = df["close"].rolling(long_window).mean()
     else:
         raise ValueError(f"Unsupported strategy type: {strategy_type}")
@@ -44,9 +56,14 @@ def run_ma_backtest(
     total_fees = 0.0
     trades = []
     equity_curve = []
+    entry_index = None
+    martingale_level = 0
+    martingale_next_buy_price = None
+    cost_basis = 0.0
 
     for _, row in df.iterrows():
         price = float(row["close"])
+        signal = "HOLD"
 
         if strategy_type == STRATEGY_MA_CROSS:
             if pd.isna(row["short_ma"]) or pd.isna(row["long_ma"]):
@@ -57,33 +74,79 @@ def run_ma_backtest(
                 signal = "SELL"
             else:
                 signal = "HOLD"
-        else:
+        elif strategy_type == STRATEGY_MA_TURN:
             signal = ma_bullish_alignment_signal(
                 df.loc[:row.name, "close"],
                 df.loc[:row.name, "ma5"],
                 df.loc[:row.name, "ma10"],
                 df.loc[:row.name, "ma20"],
             )
+        elif strategy_type == STRATEGY_MA_REVERSION:
+            previous_close = float(df.loc[row.name - 1, "close"]) if row.name > 0 else price
+            candle_return = price / previous_close - 1
+            exit_due_to_time = entry_index is not None and row.name > entry_index
+            exit_due_to_drop = position > 0 and candle_return <= REVERSION_DROP_THRESHOLD
+
+            if position > 0 and (exit_due_to_time or exit_due_to_drop):
+                signal = "SELL"
+            elif position == 0:
+                signal = ma_reversion_entry_signal(
+                    df.loc[:row.name, "close"],
+                    df.loc[:row.name, "ma5"],
+                    df.loc[:row.name, "ma10"],
+                    df.loc[:row.name, "ma20"],
+                )
+            else:
+                signal = "HOLD"
+        else:
+            previous_close = float(df.loc[row.name - 1, "close"]) if row.name > 0 else price
+            candle_return = price / previous_close - 1
+            average_cost = cost_basis / position if position > 0 else None
+
+            if position > 0 and average_cost and price >= average_cost * (1 + MARTINGALE_TAKE_PROFIT):
+                signal = "SELL"
+            elif position == 0 and candle_return <= MARTINGALE_ENTRY_DROP_THRESHOLD:
+                signal = "BUY"
+            elif (
+                position > 0
+                and martingale_level < MARTINGALE_MAX_LEVELS
+                and martingale_next_buy_price is not None
+                and price <= martingale_next_buy_price
+                and cash > 0
+            ):
+                signal = "BUY"
 
         if signal == "BUY" and cash > 0:
-            fee = cash * fee_rate
-            net_cash = cash - fee
-            position = net_cash / price
+            if strategy_type == STRATEGY_MARTINGALE:
+                base_order = initial_balance * MARTINGALE_BASE_FRACTION
+                order_cash = min(cash, base_order * (MARTINGALE_MULTIPLIER ** martingale_level))
+            else:
+                order_cash = cash
+
+            fee = order_cash * fee_rate
+            net_cash = order_cash - fee
+            bought_amount = net_cash / price
+            position += bought_amount
+            cost_basis += net_cash
             total_fees += fee
             trades.append({
                 "side": "BUY",
                 "index": int(row.name),
                 "timestamp": int(row["timestamp"]),
                 "price": round(price, 2),
-                "amount": round(position, 8),
+                "amount": round(bought_amount, 8),
                 "equity": round(cash, 2),
                 "fee": round(fee, 4),
             })
-            cash = 0.0
+            cash -= order_cash
+            entry_index = int(row.name)
+            if strategy_type == STRATEGY_MARTINGALE:
+                martingale_level += 1
+                martingale_next_buy_price = price * (1 - MARTINGALE_PRICE_STEP)
         elif signal == "SELL" and position > 0:
             gross_cash = position * price
             fee = gross_cash * fee_rate
-            cash = gross_cash - fee
+            cash += gross_cash - fee
             total_fees += fee
             trades.append({
                 "side": "SELL",
@@ -95,6 +158,11 @@ def run_ma_backtest(
                 "fee": round(fee, 4),
             })
             position = 0.0
+            cost_basis = 0.0
+            entry_index = None
+            if strategy_type == STRATEGY_MARTINGALE:
+                martingale_level = 0
+                martingale_next_buy_price = None
 
         equity_curve.append(cash + position * price)
 

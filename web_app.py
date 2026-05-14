@@ -26,7 +26,13 @@ from exchange import (
     get_ohlcv,
 )
 from risk import calculate_position
-from strategy import STRATEGY_MA_CROSS, STRATEGY_MA_TURN, generate_signal
+from strategy import (
+    STRATEGY_MA_CROSS,
+    STRATEGY_MA_REVERSION,
+    STRATEGY_MARTINGALE,
+    STRATEGY_MA_TURN,
+    generate_signal,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -43,7 +49,12 @@ DEFAULT_SELL_CONDITION = "below"
 VALID_CONDITIONS = {"above", "below"}
 VALID_BACKTEST_DATA_SOURCES = {"fetch", "local"}
 DEFAULT_STRATEGY_TYPE = STRATEGY_MA_TURN
-VALID_STRATEGY_TYPES = {STRATEGY_MA_CROSS, STRATEGY_MA_TURN}
+VALID_STRATEGY_TYPES = {
+    STRATEGY_MA_CROSS,
+    STRATEGY_MA_TURN,
+    STRATEGY_MA_REVERSION,
+    STRATEGY_MARTINGALE,
+}
 
 app = FastAPI(title="Quant Bot Dashboard")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
